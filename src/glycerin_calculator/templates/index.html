@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glycerin Dosing Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="eyebrow">VISCOSITY → VOLUME</div>
+      <h1>Glycerin dosing calculator</h1>
+      <p class="subtitle">Cheng (2008) glycerol–water model · densities at ~20 °C</p>
+    </header>
+
+    <form
+      hx-post="/calculate"
+      hx-target="#result-zone"
+      hx-swap="innerHTML"
+      hx-trigger="input delay:300ms, change"
+    >
+      <div class="field">
+        <label for="target_mu">Target viscosity (final solution)</label>
+        <div class="input-row">
+          <input type="number" id="target_mu" name="target_mu"
+                 value="60" step="any" inputmode="decimal">
+          <span class="unit">mPa·s</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="temperature">Temperature</label>
+        <div class="input-row">
+          <input type="number" id="temperature" name="temperature"
+                 value="20" step="any" inputmode="decimal">
+          <span class="unit">°C</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="volume">Current solution volume</label>
+        <div class="input-row">
+          <input type="number" id="volume" name="volume"
+                 value="100" step="any" inputmode="decimal">
+          <span class="unit">mL</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="w0_pct">Glycerol already in solution</label>
+        <div class="input-row">
+          <input type="number" id="w0_pct" name="w0_pct"
+                 value="0" step="any" inputmode="decimal">
+          <span class="unit">% w/w</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="stock_pct">Stock concentration</label>
+        <div class="input-row">
+          <input type="number" id="stock_pct" name="stock_pct"
+                 value="86" step="any" inputmode="decimal">
+          <span class="unit">%</span>
+        </div>
+      </div>
+
+      <div class="basis-toggle">
+        <label class="toggle-btn">
+          <input type="radio" name="basis" value="ww" checked> % w/w
+        </label>
+        <label class="toggle-btn">
+          <input type="radio" name="basis" value="vv"> % v/v
+        </label>
+      </div>
+    </form>
+
+    <!-- result + chart swap target -->
+    <div id="result-zone">
+      {% include "partials/result.html" %}
+    </div>
+
+    <p class="footnote">
+      Assumes the base is essentially water/dilute aqueous. Other solutes (buffers, salts,
+      proteins) shift the real viscosity — treat the result as a strong starting estimate and
+      verify on the viscometer. Confirm whether your stock is specified w/w or v/v.
+    </p>
+  </div>
+
+  <script>
+    // Initialise chart from server-rendered JSON on first load
+    (function () {
+      const el = document.getElementById('viscosity-chart');
+      if (!el) return;
+      const fig = JSON.parse(el.dataset.figure);
+      Plotly.newPlot('viscosity-chart', fig.data, fig.layout, { responsive: true, displayModeBar: false });
+    })();
+
+    // Re-render chart whenever HTMX swaps in new content
+    document.body.addEventListener('htmx:afterSwap', function (evt) {
+      const el = document.getElementById('viscosity-chart');
+      if (!el) return;
+      const fig = JSON.parse(el.dataset.figure);
+      Plotly.react('viscosity-chart', fig.data, fig.layout);
+    });
+  </script>
+</body>
+</html>
