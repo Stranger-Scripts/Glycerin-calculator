@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from glycerin_calculator.main import app
 from glycerin_calculator.physics import (
-    mix_visc, solve_cm, density, vv_to_ww, ww_to_vv, calculate,
+    mix_visc, solve_cm, density, vv_to_ww, ww_to_vv, calculate, calculate_batch,
 )
 
 client = TestClient(app)
@@ -105,6 +105,48 @@ class TestCalculate:
         assert r_vv.Vs < r_ww.Vs
 
 
+class TestCalculateBatch:
+    def test_mode_flag(self):
+        r = calculate_batch(60, 20, 500, 0, 86, "ww")
+        assert r.mode == "batch"
+        assert r.error is None
+
+    def test_both_volumes_solved(self):
+        r = calculate_batch(60, 20, 500, 0, 86, "ww")
+        assert r.V0 > 0          # base solution volume
+        assert r.Vs > 0          # stock volume
+        assert r.final_vol == 500
+
+    def test_components_exceed_final_volume(self):
+        # glycerol-water mixing contracts → components sum to more than final
+        r = calculate_batch(60, 20, 500, 0, 86, "ww")
+        assert r.V0 + r.Vs > r.final_vol
+
+    def test_mass_balance_hits_target(self):
+        # the two solved volumes, recombined, should reproduce the target viscosity
+        r = calculate_batch(60, 20, 500, 0, 86, "ww")
+        m0 = r.V0 * density(r.w0)
+        ms = r.Vs * density(r.ws)
+        wf_check = (m0 * r.w0 + ms * r.ws) / (m0 + ms)
+        assert abs(mix_visc(wf_check, 20) - 60) < 0.5
+
+    def test_scales_with_final_volume(self):
+        small = calculate_batch(60, 20, 250, 0, 86, "ww")
+        big = calculate_batch(60, 20, 500, 0, 86, "ww")
+        assert big.Vs > small.Vs
+        assert big.V0 > small.V0
+
+    def test_target_too_high(self):
+        r = calculate_batch(5000, 20, 500, 0, 86, "ww")
+        assert r.error is not None
+
+    def test_stock_too_dilute(self):
+        mu_80 = mix_visc(0.80, 20)
+        r = calculate_batch(mu_80, 20, 500, 0, 50, "ww")
+        assert r.error is not None
+        assert "stock" in r.error.lower()
+
+
 # ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
@@ -130,3 +172,12 @@ class TestHTTP:
         })
         assert resp.status_code == 200
         assert "result-error" in resp.text
+
+    def test_calculate_batch_mode(self):
+        resp = client.post("/calculate", data={
+            "mode": "batch", "target_mu": 60, "final_volume": 500,
+            "temperature": 20, "volume": 100,
+            "w0_pct": 0, "stock_pct": 86, "basis": "ww",
+        })
+        assert resp.status_code == 200
+        assert "TO MAKE" in resp.text

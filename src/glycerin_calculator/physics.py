@@ -115,7 +115,7 @@ class CalcResult:
     # inputs echoed back
     target_mu: float
     T: float
-    V0: float
+    V0: float           # base/current solution volume (mL) — input in "solve", output in "batch"
     w0: float           # current glycerol mass frac
     ws: float           # stock glycerol mass frac
     stock_pct: float
@@ -126,9 +126,10 @@ class CalcResult:
     wf_vv: float        # same, as volume fraction
     base_mu: float      # viscosity of current solution
     Vs: float           # stock volume to add (mL)
-    final_vol: float    # final solution volume (mL)
+    final_vol: float    # final solution volume (mL) — output in "solve", input in "batch"
 
     error: str | None = None
+    mode: str = "solve"  # "solve" (dose from current vol) or "batch" (volumes from final vol)
 
 
 def calculate(
@@ -183,7 +184,60 @@ def calculate(
         stock_pct=stock_pct, basis=basis,
         wf=wf, wf_vv=ww_to_vv(wf),
         base_mu=base_mu, Vs=Vs, final_vol=final_vol,
-        error=error,
+        error=error, mode="solve",
+    )
+
+
+def calculate_batch(
+    target_mu: float,
+    T: float,
+    V_final: float,
+    w0_pct: float,
+    stock_pct: float,
+    basis: Literal["ww", "vv"],
+) -> CalcResult:
+    """
+    Compute the base-solution and stock volumes to combine to make exactly
+    *V_final* mL of final solution at *target_mu*.
+
+    Same mass balance as :func:`calculate`, but the desired final volume is the
+    input and both component volumes (base ``V0`` and stock ``Vs``) are solved
+    for.  Note: because glycerol–water mixing contracts, ``V0 + Vs`` exceeds
+    ``V_final`` slightly — the balance is exact by mass.
+    """
+    w0 = w0_pct / 100
+    ws = stock_pct / 100 if basis == "ww" else vv_to_ww(stock_pct / 100)
+
+    sol = solve_cm(target_mu, T)
+    wf = sol.cm
+    base_mu = mix_visc(w0, T)
+
+    error: str | None = None
+    if sol.status == "high":
+        error = "Target exceeds pure glycerol viscosity at this temperature — unreachable."
+    elif wf <= w0 + 1e-6:
+        error = (
+            "Target viscosity is at or below your base solution. "
+            "Adding glycerin only raises it."
+        )
+    elif wf >= ws - 1e-6:
+        error = (
+            f"Your {stock_pct:.0f}% stock is too dilute — you would need "
+            f"≥ {wf * 100:.1f}% glycerol. Use a stronger stock."
+        )
+
+    final_mass = V_final * density(wf)
+    ms = final_mass * (wf - w0) / (ws - w0) if not error else 0.0
+    m0 = final_mass - ms if not error else 0.0
+    Vs = ms / density(ws) if not error else 0.0
+    V0 = m0 / density(w0) if not error else 0.0
+
+    return CalcResult(
+        target_mu=target_mu, T=T, V0=V0, w0=w0, ws=ws,
+        stock_pct=stock_pct, basis=basis,
+        wf=wf, wf_vv=ww_to_vv(wf),
+        base_mu=base_mu, Vs=Vs, final_vol=V_final,
+        error=error, mode="batch",
     )
 
 
