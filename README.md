@@ -2,11 +2,26 @@
 
 This Glycerin Calculator is developed based on the standard laboratory model proposed by Cheng (2008) for glycerol-water mixtures, specifically for instances when a desired concentration in mPas is required.
 
-FastAPI + HTMX web app for computing how much glycerin stock to add to an
-aqueous solution to reach a target viscosity.  
+FastAPI + HTMX web app for computing glycerin–water dosing to reach a target
+viscosity.  
 Uses the [**Cheng (2008)**](https://scispace.com/pdf/formula-for-the-viscosity-of-a-glycerol-water-mixture-3x1y9n97is.pdf) glycerol–water viscosity model and a tabulated density table for ~20 °C.
 
-![alt text](images/gly-cal.png)
+The calculator has two modes, switchable with the toggle at the top of the form.
+
+**First mode — Current volume.** You have a fixed amount of solution on hand.
+Enter its volume, the glycerol it already contains, and your target viscosity;
+the calculator returns how much glycerin stock to add to reach that viscosity.
+
+![First mode — dose from current volume](images/gly-cal-firstmode.png)
+
+**Second mode — Final volume.** You want to prepare a specific batch size. Enter
+the desired final volume and target viscosity; the calculator returns the two
+volumes to combine — how much base solution and how much glycerin stock — to make
+exactly that much solution at the target viscosity. (Because glycerol–water mixing
+contracts, the two component volumes sum to slightly more than the final volume;
+the result is exact by mass.)
+
+![Second mode — volumes from final volume](images/gly-cal-secdmode.png)
 
 ## Quick start
 
