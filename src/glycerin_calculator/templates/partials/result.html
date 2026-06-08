@@ -2,6 +2,28 @@
 <div class="result-error">
   {{ r.error }}
 </div>
+{% elif r is defined and r.mode == "forward" %}
+<div class="result-box">
+  <div class="result-eyebrow">RESULTING VISCOSITY</div>
+  <div class="result-volume">
+    {{ "%.1f"|format(r.target_mu) }}
+    <span class="result-unit">mPa·s</span>
+  </div>
+  <div class="result-desc">
+    after adding {{ "%.1f"|format(r.Vs) }} mL of {{ r.stock_pct|int }}%
+    {% if r.basis == "ww" %}(w/w){% else %}(v/v){% endif %}
+    glycerin stock
+  </div>
+  <div class="result-divider"></div>
+  <dl class="result-details">
+    <dt>resulting glycerol</dt>
+    <dd>{{ "%.1f"|format(r.wf * 100) }}% w/w (≈ {{ "%.1f"|format(r.wf_vv * 100) }}% v/v)</dd>
+    <dt>base viscosity</dt>
+    <dd>{{ "%.1f"|format(r.base_mu) }} mPa·s</dd>
+    <dt>final volume</dt>
+    <dd>≈ {{ "%.1f"|format(r.final_vol) }} mL</dd>
+  </dl>
+</div>
 {% elif r is defined %}
 <div class="result-box">
   <div class="result-eyebrow">ADD TO YOUR SOLUTION</div>

@@ -129,6 +129,7 @@ class CalcResult:
     final_vol: float    # final solution volume (mL)
 
     error: str | None = None
+    mode: str = "solve"  # "solve" (dose from target) or "forward" (η from dose)
 
 
 def calculate(
@@ -183,7 +184,50 @@ def calculate(
         stock_pct=stock_pct, basis=basis,
         wf=wf, wf_vv=ww_to_vv(wf),
         base_mu=base_mu, Vs=Vs, final_vol=final_vol,
-        error=error,
+        error=error, mode="solve",
+    )
+
+
+def calculate_forward(
+    Vs: float,
+    T: float,
+    V0: float,
+    w0_pct: float,
+    stock_pct: float,
+    basis: Literal["ww", "vv"],
+) -> CalcResult:
+    """
+    Forward calculation: given a fixed stock volume to add, report the
+    resulting viscosity. Parameters mirror :func:`calculate`, except *Vs*
+    (the stock volume to add, in mL) replaces *target_mu* as the input.
+    """
+    w0 = w0_pct / 100
+    ws = stock_pct / 100 if basis == "ww" else vv_to_ww(stock_pct / 100)
+    base_mu = mix_visc(w0, T)
+
+    m0 = V0 * density(w0)
+    ms = Vs * density(ws)
+    final_mass = m0 + ms
+
+    error: str | None = None
+    if Vs < 0:
+        error = "Stock volume to add cannot be negative."
+    elif final_mass <= 0:
+        error = "Enter a non-zero current or stock volume."
+
+    if error:
+        wf, result_mu, final_vol = w0, base_mu, V0
+    else:
+        wf = (m0 * w0 + ms * ws) / final_mass
+        result_mu = mix_visc(wf, T)
+        final_vol = final_mass / density(wf)
+
+    return CalcResult(
+        target_mu=result_mu, T=T, V0=V0, w0=w0, ws=ws,
+        stock_pct=stock_pct, basis=basis,
+        wf=wf, wf_vv=ww_to_vv(wf),
+        base_mu=base_mu, Vs=Vs, final_vol=final_vol,
+        error=error, mode="forward",
     )
 
 

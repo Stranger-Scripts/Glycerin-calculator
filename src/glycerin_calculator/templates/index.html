@@ -24,12 +24,30 @@
       hx-swap="innerHTML"
       hx-trigger="input delay:300ms, change"
     >
-      <div class="field">
+      <div class="basis-toggle mode-toggle">
+        <label class="toggle-btn">
+          <input type="radio" name="mode" value="solve" checked> Find dose
+        </label>
+        <label class="toggle-btn">
+          <input type="radio" name="mode" value="forward"> Find η
+        </label>
+      </div>
+
+      <div class="field" data-mode="solve">
         <label for="target_mu">Target viscosity (final solution)</label>
         <div class="input-row">
           <input type="number" id="target_mu" name="target_mu"
                  value="60" step="any" inputmode="decimal">
           <span class="unit">mPa·s</span>
+        </div>
+      </div>
+
+      <div class="field" data-mode="forward">
+        <label for="stock_volume">Stock volume to add</label>
+        <div class="input-row">
+          <input type="number" id="stock_volume" name="stock_volume"
+                 value="50" step="any" inputmode="decimal">
+          <span class="unit">mL</span>
         </div>
       </div>
 
@@ -92,6 +110,22 @@
   </div>
 
   <script>
+    // Show only the input relevant to the selected mode
+    (function () {
+      function syncMode() {
+        const checked = document.querySelector('input[name="mode"]:checked');
+        if (!checked) return;
+        const mode = checked.value;
+        document.querySelectorAll('[data-mode]').forEach(function (el) {
+          el.style.display = el.dataset.mode === mode ? '' : 'none';
+        });
+      }
+      document.querySelectorAll('input[name="mode"]').forEach(function (r) {
+        r.addEventListener('change', syncMode);
+      });
+      syncMode();
+    })();
+
     // Initialise chart from server-rendered JSON on first load
     (function () {
       const el = document.getElementById('viscosity-chart');

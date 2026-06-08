@@ -20,7 +20,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from glycerin_calculator.physics import calculate, viscosity_curve
+from glycerin_calculator.physics import calculate, calculate_forward, viscosity_curve
 
 BASE = Path(__file__).parent
 app = FastAPI(title="Glycerin Calculator")
@@ -90,20 +90,32 @@ async def calculate_endpoint(
     w0_pct: Annotated[float, Form()],
     stock_pct: Annotated[float, Form()],
     basis: Annotated[str, Form()],
+    mode: Annotated[str, Form()] = "solve",
+    stock_volume: Annotated[float, Form()] = 0.0,
 ) -> HTMLResponse:
-    result = calculate(
-        target_mu=target_mu,
-        T=temperature,
-        V0=volume,
-        w0_pct=w0_pct,
-        stock_pct=stock_pct,
-        basis=basis,
-    )
+    if mode == "forward":
+        result = calculate_forward(
+            Vs=stock_volume,
+            T=temperature,
+            V0=volume,
+            w0_pct=w0_pct,
+            stock_pct=stock_pct,
+            basis=basis,
+        )
+    else:
+        result = calculate(
+            target_mu=target_mu,
+            T=temperature,
+            V0=volume,
+            w0_pct=w0_pct,
+            stock_pct=stock_pct,
+            basis=basis,
+        )
 
     chart_json = _build_chart(
         temperature,
         wf=result.wf if not result.error else None,
-        target_mu=target_mu if not result.error else None,
+        target_mu=result.target_mu if not result.error else None,
     )
 
     return templates.TemplateResponse(

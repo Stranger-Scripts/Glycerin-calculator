@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from glycerin_calculator.main import app
 from glycerin_calculator.physics import (
-    mix_visc, solve_cm, density, vv_to_ww, ww_to_vv, calculate,
+    mix_visc, solve_cm, density, vv_to_ww, ww_to_vv, calculate, calculate_forward,
 )
 
 client = TestClient(app)
@@ -105,6 +105,33 @@ class TestCalculate:
         assert r_vv.Vs < r_ww.Vs
 
 
+class TestCalculateForward:
+    def test_mode_flag(self):
+        r = calculate_forward(50, 20, 100, 0, 86, "ww")
+        assert r.mode == "forward"
+        assert r.error is None
+
+    def test_roundtrip_with_solve(self):
+        # The dose solve() recommends should reproduce the target viscosity
+        # when fed back through the forward calc.
+        solved = calculate(60, 20, 100, 0, 86, "ww")
+        fwd = calculate_forward(solved.Vs, 20, 100, 0, 86, "ww")
+        assert abs(fwd.target_mu - 60) < 0.5
+
+    def test_more_stock_raises_viscosity(self):
+        low = calculate_forward(20, 20, 100, 0, 86, "ww")
+        high = calculate_forward(80, 20, 100, 0, 86, "ww")
+        assert high.target_mu > low.target_mu
+
+    def test_zero_stock_returns_base(self):
+        r = calculate_forward(0, 20, 100, 0, 86, "ww")
+        assert abs(r.target_mu - r.base_mu) < 1e-6
+
+    def test_negative_stock_error(self):
+        r = calculate_forward(-5, 20, 100, 0, 86, "ww")
+        assert r.error is not None
+
+
 # ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
@@ -130,3 +157,12 @@ class TestHTTP:
         })
         assert resp.status_code == 200
         assert "result-error" in resp.text
+
+    def test_calculate_forward_mode(self):
+        resp = client.post("/calculate", data={
+            "mode": "forward", "target_mu": 60, "stock_volume": 50,
+            "temperature": 20, "volume": 100,
+            "w0_pct": 0, "stock_pct": 86, "basis": "ww",
+        })
+        assert resp.status_code == 200
+        assert "RESULTING VISCOSITY" in resp.text
