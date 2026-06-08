@@ -157,40 +157,6 @@ h1 {
 .result-details dt { color: #e7ddcd; }
 .result-details dd { color: #fff; font-weight: 500; }
 
-/* ── recipe (two-volume) result ─────────────────────────────── */
-.result-recipe {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 8px 0 2px;
-}
-.recipe-item { flex: 1; min-width: 0; }
-.recipe-vol {
-  font-family: var(--serif);
-  font-size: 33px;
-  font-weight: 600;
-  line-height: 1;
-}
-.recipe-unit {
-  font-family: var(--serif);
-  font-size: 15px;
-  font-weight: 500;
-  margin-left: 3px;
-}
-.recipe-plus {
-  font-family: var(--serif);
-  font-size: 26px;
-  color: #c9a98f;
-  padding-top: 4px;
-}
-.recipe-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: #d8ccbb;
-  margin-top: 6px;
-  line-height: 1.3;
-}
-
 /* ── error ───────────────────────────────────────────────────── */
 .result-error {
   background: #f6e2d6;

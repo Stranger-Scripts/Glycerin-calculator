@@ -24,15 +24,6 @@
       hx-swap="innerHTML"
       hx-trigger="input delay:300ms, change"
     >
-      <div class="basis-toggle mode-toggle">
-        <label class="toggle-btn">
-          <input type="radio" name="mode" value="solve" checked> Current vol
-        </label>
-        <label class="toggle-btn">
-          <input type="radio" name="mode" value="batch"> Final vol
-        </label>
-      </div>
-
       <div class="field">
         <label for="target_mu">Target viscosity (final solution)</label>
         <div class="input-row">
@@ -51,20 +42,11 @@
         </div>
       </div>
 
-      <div class="field" data-mode="solve">
+      <div class="field">
         <label for="volume">Current solution volume</label>
         <div class="input-row">
           <input type="number" id="volume" name="volume"
                  value="100" step="any" inputmode="decimal">
-          <span class="unit">mL</span>
-        </div>
-      </div>
-
-      <div class="field" data-mode="batch">
-        <label for="final_volume">Final solution volume</label>
-        <div class="input-row">
-          <input type="number" id="final_volume" name="final_volume"
-                 value="500" step="any" inputmode="decimal">
           <span class="unit">mL</span>
         </div>
       </div>
@@ -110,22 +92,6 @@
   </div>
 
   <script>
-    // Show only the volume input relevant to the selected mode
-    (function () {
-      function syncMode() {
-        const checked = document.querySelector('input[name="mode"]:checked');
-        if (!checked) return;
-        const mode = checked.value;
-        document.querySelectorAll('[data-mode]').forEach(function (el) {
-          el.style.display = el.dataset.mode === mode ? '' : 'none';
-        });
-      }
-      document.querySelectorAll('input[name="mode"]').forEach(function (r) {
-        r.addEventListener('change', syncMode);
-      });
-      syncMode();
-    })();
-
     // Initialise chart from server-rendered JSON on first load
     (function () {
       const el = document.getElementById('viscosity-chart');

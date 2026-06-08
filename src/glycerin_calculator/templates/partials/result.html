@@ -2,33 +2,6 @@
 <div class="result-error">
   {{ r.error }}
 </div>
-{% elif r is defined and r.mode == "batch" %}
-<div class="result-box">
-  <div class="result-eyebrow">TO MAKE {{ "%.0f"|format(r.final_vol) }} mL · COMBINE</div>
-  <div class="result-recipe">
-    <div class="recipe-item">
-      <div class="recipe-vol">{{ "%.1f"|format(r.V0) }}<span class="recipe-unit">mL</span></div>
-      <div class="recipe-label">base ({{ "%.0f"|format(r.w0 * 100) }}% w/w)</div>
-    </div>
-    <div class="recipe-plus">+</div>
-    <div class="recipe-item">
-      <div class="recipe-vol">{{ "%.1f"|format(r.Vs) }}<span class="recipe-unit">mL</span></div>
-      <div class="recipe-label">
-        {{ r.stock_pct|int }}%
-        {% if r.basis == "ww" %}(w/w){% else %}(v/v){% endif %} stock
-      </div>
-    </div>
-  </div>
-  <div class="result-divider"></div>
-  <dl class="result-details">
-    <dt>required glycerol</dt>
-    <dd>{{ "%.1f"|format(r.wf * 100) }}% w/w (≈ {{ "%.1f"|format(r.wf_vv * 100) }}% v/v)</dd>
-    <dt>base viscosity</dt>
-    <dd>{{ "%.1f"|format(r.base_mu) }} mPa·s</dd>
-    <dt>final volume</dt>
-    <dd>≈ {{ "%.0f"|format(r.final_vol) }} mL</dd>
-  </dl>
-</div>
 {% elif r is defined %}
 <div class="result-box">
   <div class="result-eyebrow">ADD TO YOUR SOLUTION</div>
