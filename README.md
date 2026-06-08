@@ -4,14 +4,17 @@ This Glycerin Calculator is developed based on the standard laboratory model pro
 
 FastAPI + HTMX web app for computing how much glycerin stock to add to an
 aqueous solution to reach a target viscosity.  
-Uses the **Cheng (2008)** glycerol–water viscosity model and a tabulated
-density table for ~20 °C.
+Uses the [**Cheng (2008)**](https://scispace.com/pdf/formula-for-the-viscosity-of-a-glycerol-water-mixture-3x1y9n97is.pdf) glycerol–water viscosity model and a tabulated density table for ~20 °C.
 
 ## Quick start
 
 ```bash
 # install uv if you don't have it
+# On macOS and Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# On Windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 # create venv and install deps
 uv sync
@@ -40,6 +43,7 @@ glycerin-calculator/
         ├── __init__.py
         ├── main.py          # FastAPI app + Plotly chart
         ├── physics.py       # Cheng model, density, unit conversions
+        ├── denstiy_data.py  # Gycerol + Water data @ ~20 ºC 
         ├── static/
         │   └── style.css
         └── templates/
