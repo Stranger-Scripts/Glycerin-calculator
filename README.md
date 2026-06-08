@@ -6,6 +6,8 @@ FastAPI + HTMX web app for computing how much glycerin stock to add to an
 aqueous solution to reach a target viscosity.  
 Uses the [**Cheng (2008)**](https://scispace.com/pdf/formula-for-the-viscosity-of-a-glycerol-water-mixture-3x1y9n97is.pdf) glycerol–water viscosity model and a tabulated density table for ~20 °C.
 
+![alt text](images/gly-cal.png)
+
 ## Quick start
 
 ```bash
