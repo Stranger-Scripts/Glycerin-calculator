@@ -12,6 +12,7 @@ import math
 from dataclasses import dataclass
 from typing import Literal
 
+from glycerin_calculator.density_data import _DENS_TABLE_20C
 
 # ---------------------------------------------------------------------------
 # Viscosity model (Cheng 2008)
@@ -74,45 +75,15 @@ def solve_cm(target_mu: float, T: float) -> SolveResult:
     return SolveResult(cm=(lo + hi) / 2, status="ok")
 
 
-# ---------------------------------------------------------------------------
-# Density (g/mL) — glycerol–water at ~20 °C, linear interpolation
-# Data found here https://www.scribd.com/doc/21120701/Density-of-Glycerine?html=1
-# ---------------------------------------------------------------------------
-
-_DENS_TABLE: list[tuple[float, float]] = [
-    (0,   0.99823),
-    (5,   1.01015),
-    (10,  1.02210),
-    (15,  1.03450),
-    (20,  1.04690),
-    (25,  1.05980),
-    (30,  1.07270),
-    (35,  1.08600),
-    (40,  1.09930),
-    (45,  1.11280),
-    (50,  1.12630),
-    (55,  1.14005),
-    (60,  1.15380),
-    (65,  1.16750),
-    (70,  1.18125),
-    (75,  1.19485),
-    (80,  1.20850),
-    (85,  1.22180),
-    (90,  1.23510),
-    (95,  1.24825),
-    (100, 1.26108),
-]
-
-
 def density(mass_frac: float) -> float:
     """Density of a glycerol–water mixture in g/mL given mass fraction (0–1)."""
     p = max(0.0, min(100.0, mass_frac * 100))
-    for i in range(len(_DENS_TABLE) - 1):
-        x0, y0 = _DENS_TABLE[i]
-        x1, y1 = _DENS_TABLE[i + 1]
+    for i in range(len(_DENS_TABLE_20C) - 1):
+        x0, y0 = _DENS_TABLE_20C[i]
+        x1, y1 = _DENS_TABLE_20C[i + 1]
         if x0 <= p <= x1:
             return y0 + (y1 - y0) * (p - x0) / (x1 - x0)
-    return _DENS_TABLE[-1][1]
+    return _DENS_TABLE_20C[-1][1]
 
 
 # ---------------------------------------------------------------------------
