@@ -1,15 +1,15 @@
 [project]
 name = "glycerin-calculator"
-version = "0.1.0"
+version = "0.4.1"
 authors = [{ name = "gabriel-geissler" }]
 requires-python = ">=3.12"
 readme = "README.md"
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi>=0.141.0",
     "uvicorn[standard]>=0.30",
     "jinja2>=3.1",
     "python-multipart>=0.0.9",
-    "plotly>=5.22",
+    "plotly>=5.24.1",
 ]
 
 [project.scripts]
@@ -22,8 +22,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/glycerin_calculator"]
 
-[tool.uv]
-dev-dependencies = [
+[dependencies-groups]
+dev = [
     "pytest>=8",
-    "httpx>=0.27",
+    "httpx>=0.27"
 ]
