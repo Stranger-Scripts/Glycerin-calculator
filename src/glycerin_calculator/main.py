@@ -10,6 +10,7 @@ FastAPI application.  Two endpoints:
 from __future__ import annotations
 
 #import json
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -22,7 +23,12 @@ from fastapi.templating import Jinja2Templates
 
 from glycerin_calculator.physics import calculate, calculate_batch, viscosity_curve
 
-BASE = Path(__file__).parent
+# When frozen by PyInstaller, data files live under sys._MEIPASS rather than
+# next to this source file. The .spec bundles them at "glycerin_calculator/".
+if getattr(sys, "frozen", False):
+    BASE = Path(sys._MEIPASS) / "glycerin_calculator"
+else:
+    BASE = Path(__file__).parent
 app = FastAPI(title="Glycerin Calculator")
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
