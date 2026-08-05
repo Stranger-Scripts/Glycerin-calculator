@@ -4,7 +4,7 @@ This Glycerin Calculator is developed based on the standard laboratory model pro
 
 FastAPI + HTMX web app for computing glycerin–water dosing to reach a target
 viscosity.  
-Uses the [**Cheng (2008)**](https://scispace.com/pdf/formula-for-the-viscosity-of-a-glycerol-water-mixture-3x1y9n97is.pdf) glycerol–water viscosity model and a tabulated density table for ~20 °C.
+Uses the [**Cheng (2008)**](https://scispace.com/pdf/formula-for-the-viscosity-of-a-glycerol-water-mixture-3x1y9n97is.pdf) glycerol–water viscosity model and tabulated density data spanning 15–30 °C (anchors at 15, 15.5, 20, 25 and 30 °C).
 
 The calculator has two modes, switchable with the toggle at the top of the form.
 
@@ -60,7 +60,7 @@ glycerin-calculator/
         ├── __init__.py
         ├── main.py          # FastAPI app + Plotly chart
         ├── physics.py       # Cheng model, density, unit conversions
-        ├── denstiy_data.py  # Gycerol + Water data @ ~20 ºC 
+        ├── density_data.py  # glycerol–water density tables (15–30 °C)
         ├── static/
         │   └── style.css
         └── templates/
@@ -79,11 +79,17 @@ uv run pytest -v
 
 - **Viscosity**: Cheng N-S (2008) *Industrial & Engineering Chemistry Research*.  
   Valid for 0–100 % glycerol and approximately 0–100 °C.
-- **Density**: linearly interpolated from tabulated literature values at ~20 °C.  
-  If your experiment runs at a significantly different temperature you should
-  verify the density assumption.
+- **Density**: bilinearly interpolated from tabulated literature values —
+  piecewise-linear in concentration and linear in temperature between anchor
+  tables at 15, 15.5, 20, 25 and 30 °C. Within that band the entered temperature
+  is used directly; outside 15–30 °C the value is extrapolated from the nearest
+  anchor pair, so verify the density assumption at temperature extremes.
 - **Stock basis**: confirm whether your 86% stock is specified w/w or v/v —
   both options are supported via the toggle.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history. Current version: **0.5.0**.
 
 ## Dependencies
 
