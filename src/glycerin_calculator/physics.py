@@ -12,7 +12,7 @@ import math
 from dataclasses import dataclass
 from typing import Literal
 
-from glycerin_calculator.density_data import _DENS_TABLE_20C
+from glycerin_calculator.density_data import _DENS_ANCHORS
 
 # ---------------------------------------------------------------------------
 # Viscosity model (Cheng 2008)
@@ -75,32 +75,67 @@ def solve_cm(target_mu: float, T: float) -> SolveResult:
     return SolveResult(cm=(lo + hi) / 2, status="ok")
 
 
-def density(mass_frac: float) -> float:
-    """Density of a glycerol–water mixture in g/mL given mass fraction (0–1)."""
-    p = max(0.0, min(100.0, mass_frac * 100))
-    for i in range(len(_DENS_TABLE_20C) - 1):
-        x0, y0 = _DENS_TABLE_20C[i]
-        x1, y1 = _DENS_TABLE_20C[i + 1]
+def _interp_conc(table: list[tuple[float, float]], p: float) -> float:
+    """Piecewise-linear density lookup on *table* at concentration *p* (% w/w, 0–100)."""
+    for i in range(len(table) - 1):
+        x0, y0 = table[i]
+        x1, y1 = table[i + 1]
         if x0 <= p <= x1:
             return y0 + (y1 - y0) * (p - x0) / (x1 - x0)
-    return _DENS_TABLE_20C[-1][1]
+    return table[-1][1]
+
+
+def density(mass_frac: float, T: float = 20.0) -> float:
+    """
+    Density of a glycerol–water mixture in g/mL.
+
+    Bilinear over the reference grid: piecewise-linear in concentration, then
+    linear in temperature between the two anchor tables bracketing *T*.
+
+    Parameters
+    ----------
+    mass_frac : float
+        Glycerol mass fraction (0–1).
+    T : float
+        Temperature in °C.  Anchors exist at 15, 15.5, 20, 25 and 30 °C, so
+        the whole span is interpolated; temperatures outside [15, 30] are
+        linearly extrapolated from the nearest anchor pair.
+    """
+    p = max(0.0, min(100.0, mass_frac * 100))
+
+    # Pick the anchor pair bracketing T; clamp the index so temperatures below
+    # the first / above the last anchor extrapolate from the end pair.
+    i = 0
+    while i < len(_DENS_ANCHORS) - 2 and T > _DENS_ANCHORS[i + 1][0]:
+        i += 1
+    t0, tbl0 = _DENS_ANCHORS[i]
+    t1, tbl1 = _DENS_ANCHORS[i + 1]
+
+    d0 = _interp_conc(tbl0, p)
+    d1 = _interp_conc(tbl1, p)
+    return d0 + (d1 - d0) * (T - t0) / (t1 - t0)
 
 
 # ---------------------------------------------------------------------------
 # Unit conversions
 # ---------------------------------------------------------------------------
 
-def vv_to_ww(v_frac: float) -> float:
-    """Convert glycerol volume fraction to mass fraction (uses pure-component densities)."""
-    rho_g, rho_w = 1.26108, 0.99823
+def vv_to_ww(v_frac: float, T: float = 20.0) -> float:
+    """
+    Convert glycerol volume fraction to mass fraction at *T* °C.
+
+    Uses the pre-mixing (standard) v/v convention: pure-component densities are
+    taken at *T* from the reference tables so the conversion tracks temperature.
+    """
+    rho_g, rho_w = density(1.0, T), density(0.0, T)
     mass_g = v_frac * rho_g
     mass_w = (1 - v_frac) * rho_w
     return mass_g / (mass_g + mass_w)
 
 
-def ww_to_vv(w_frac: float) -> float:
-    """Convert glycerol mass fraction to volume fraction."""
-    rho_g, rho_w = 1.26108, 0.99823
+def ww_to_vv(w_frac: float, T: float = 20.0) -> float:
+    """Convert glycerol mass fraction to volume fraction at *T* °C (pre-mixing convention)."""
+    rho_g, rho_w = density(1.0, T), density(0.0, T)
     vol_g = w_frac / rho_g
     vol_w = (1 - w_frac) / rho_w
     return vol_g / (vol_g + vol_w)
@@ -153,7 +188,7 @@ def calculate(
     basis     : str     "ww" or "vv" — applies to stock_pct
     """
     w0 = w0_pct / 100
-    ws = stock_pct / 100 if basis == "ww" else vv_to_ww(stock_pct / 100)
+    ws = stock_pct / 100 if basis == "ww" else vv_to_ww(stock_pct / 100, T)
 
     sol = solve_cm(target_mu, T)
     wf = sol.cm
@@ -173,16 +208,16 @@ def calculate(
             f"≥ {wf * 100:.1f}% glycerol. Use a stronger stock."
         )
 
-    m0 = V0 * density(w0)
+    m0 = V0 * density(w0, T)
     ms = m0 * (wf - w0) / (ws - wf) if not error else 0.0
-    Vs = ms / density(ws) if not error else 0.0
+    Vs = ms / density(ws, T) if not error else 0.0
     final_mass = m0 + ms
-    final_vol = final_mass / density(wf) if not error else V0
+    final_vol = final_mass / density(wf, T) if not error else V0
 
     return CalcResult(
         target_mu=target_mu, T=T, V0=V0, w0=w0, ws=ws,
         stock_pct=stock_pct, basis=basis,
-        wf=wf, wf_vv=ww_to_vv(wf),
+        wf=wf, wf_vv=ww_to_vv(wf, T),
         base_mu=base_mu, Vs=Vs, final_vol=final_vol,
         error=error, mode="solve",
     )
@@ -206,7 +241,7 @@ def calculate_batch(
     ``V_final`` slightly — the balance is exact by mass.
     """
     w0 = w0_pct / 100
-    ws = stock_pct / 100 if basis == "ww" else vv_to_ww(stock_pct / 100)
+    ws = stock_pct / 100 if basis == "ww" else vv_to_ww(stock_pct / 100, T)
 
     sol = solve_cm(target_mu, T)
     wf = sol.cm
@@ -226,16 +261,16 @@ def calculate_batch(
             f"≥ {wf * 100:.1f}% glycerol. Use a stronger stock."
         )
 
-    final_mass = V_final * density(wf)
+    final_mass = V_final * density(wf, T)
     ms = final_mass * (wf - w0) / (ws - w0) if not error else 0.0
     m0 = final_mass - ms if not error else 0.0
-    Vs = ms / density(ws) if not error else 0.0
-    V0 = m0 / density(w0) if not error else 0.0
+    Vs = ms / density(ws, T) if not error else 0.0
+    V0 = m0 / density(w0, T) if not error else 0.0
 
     return CalcResult(
         target_mu=target_mu, T=T, V0=V0, w0=w0, ws=ws,
         stock_pct=stock_pct, basis=basis,
-        wf=wf, wf_vv=ww_to_vv(wf),
+        wf=wf, wf_vv=ww_to_vv(wf, T),
         base_mu=base_mu, Vs=Vs, final_vol=V_final,
         error=error, mode="batch",
     )

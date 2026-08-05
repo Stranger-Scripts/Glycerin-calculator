@@ -1,6 +1,6 @@
 [project]
 name = "glycerin-calculator"
-version = "0.4.1"
+version = "0.5.0"
 authors = [{ name = "gabriel-geissler" }]
 requires-python = ">=3.12"
 readme = "README.md"
