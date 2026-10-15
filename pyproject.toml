@@ -23,6 +23,9 @@ build-backend = "hatchling.build"
 packages = ["src/glycerin_calculator"]
 
 [dependency-groups]
+build = [
+    "pyinstaller>=6.22.3",
+]
 dev = [
     "pytest>=8",
     "httpx>=0.27"

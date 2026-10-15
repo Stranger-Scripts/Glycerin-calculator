@@ -1,0 +1,202 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# Read-only by default; the publish job widens this to `contents: write`.
+permissions:
+  contents: read
+
+env:
+  # Matches `requires-python` in pyproject.toml — build on the declared floor
+  # so the frozen interpreter is no newer than what the project claims.
+  PYTHON_VERSION: "3.12"
+  # python's webbrowser module honours $BROWSER. The frozen launcher opens a
+  # tab on startup; point it at /bin/true so the CI smoke test stays headless.
+  BROWSER: "true"
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x86_64
+          - os: windows-latest
+            target: windows-x86_64
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+
+      - name: Install Python ${{ env.PYTHON_VERSION }}
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      # --locked fails rather than silently re-resolving, so a release always
+      # builds the exact versions pinned in uv.lock (PyInstaller included).
+      - name: Sync dependencies
+        run: >
+          uv sync --locked
+          --group dev --group build
+          --python ${{ env.PYTHON_VERSION }}
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          project=$(uv version --short)
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+            if [ "$version" != "$project" ]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match pyproject version $project" >&2
+              exit 1
+            fi
+          else
+            # workflow_dispatch: no tag to read, fall back to pyproject.
+            version="$project"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building version $version"
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Build bundle
+        run: >
+          uv run pyinstaller build/glycerin_calculator.spec
+          --clean --noconfirm
+          --distpath dist
+          --workpath build-tmp
+
+      - name: Smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          ./dist/glycerin-calculator/glycerin-calculator &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/ -o /dev/null; then
+              echo "server responded"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::frozen bundle did not serve http://127.0.0.1:8000 within 30s" >&2
+          exit 1
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $exe = "dist\glycerin-calculator\glycerin-calculator.exe"
+          $proc = Start-Process -FilePath $exe -PassThru
+          try {
+            foreach ($_ in 1..30) {
+              try {
+                Invoke-WebRequest -Uri "http://127.0.0.1:8000/" -UseBasicParsing -TimeoutSec 5 | Out-Null
+                Write-Host "server responded"
+                exit 0
+              } catch {
+                Start-Sleep -Seconds 1
+              }
+            }
+            Write-Error "frozen bundle did not serve http://127.0.0.1:8000 within 30s"
+            exit 1
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          name="glycerin-calculator-${VERSION}-${TARGET}"
+          tar -czf "artifacts/${name}.tar.gz" -C dist glycerin-calculator
+          (cd artifacts && sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256")
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          $name = "glycerin-calculator-$env:VERSION-$env:TARGET"
+          $zip = "artifacts\$name.zip"
+          Compress-Archive -Path "dist\glycerin-calculator" -DestinationPath $zip
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+          "$hash  $name.zip" | Out-File -FilePath "artifacts\$name.zip.sha256" -Encoding ascii
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.target }}
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish release
+    # Only tag pushes publish. A manual run still builds and uploads artifacts
+    # to the workflow run, which makes workflow_dispatch useful as a dry run.
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Extract release notes
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          # Pull the `## [x.y.z]` section out of the Keep a Changelog file.
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { found = 1; next }
+            found && /^## \[/        { exit }
+            found                    { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::warning::no CHANGELOG section found for $version"
+            echo "See CHANGELOG.md for details." > notes.md
+          fi
+          cat notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes-file notes.md \
+            --verify-tag \
+            artifacts/*
