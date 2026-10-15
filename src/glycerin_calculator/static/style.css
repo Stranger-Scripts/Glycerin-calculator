@@ -85,6 +85,40 @@ h1 {
   margin-left: 6px;
   white-space: nowrap;
 }
+/* Per-field basis picker — sits where a static .unit would, so it reads as part
+   of the number rather than as a separate control. */
+.unit-select {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: #8a8073;
+  margin-left: 6px;
+  padding: 2px 18px 2px 4px;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #8a8073 50%),
+    linear-gradient(135deg, #8a8073 50%, transparent 50%);
+  background-position: right 7px center, right 3px center;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.unit-select:hover { color: var(--ink); }
+.unit-select:focus-visible { box-shadow: 0 0 0 1.5px var(--ink); }
+
+/* Standalone caption for a control that is not a labelled input */
+.field-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
 
 /* ── basis toggle ────────────────────────────────────────────── */
 .basis-toggle {
@@ -109,6 +143,20 @@ h1 {
 .toggle-btn:has(input:checked) {
   background: var(--ink);
   color: var(--paper);
+}
+
+/* ── mode hint ───────────────────────────────────────────────── */
+.mode-toggle { margin-bottom: 10px; }
+.mode-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+.mode-hint strong {
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--ink);
 }
 
 /* ── result box ──────────────────────────────────────────────── */
@@ -139,6 +187,13 @@ h1 {
 .result-desc {
   font-size: 13px;
   color: #d8ccbb;
+}
+.result-equiv {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: #c9a98f;
+  margin-left: 6px;
+  white-space: nowrap;
 }
 .result-divider {
   height: 1px;

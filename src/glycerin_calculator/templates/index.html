@@ -13,7 +13,7 @@
 <body>
   <div class="page">
     <header>
-      <div class="eyebrow">VISCOSITY → VOLUME</div>
+      <div class="eyebrow">VISCOSITY → DOSE</div>
       <h1>Glycerin dosing calculator</h1>
       <p class="subtitle">Cheng (2008) glycerol–water model · densities at ~20 °C</p>
     </header>
@@ -26,12 +26,23 @@
     >
       <div class="basis-toggle mode-toggle">
         <label class="toggle-btn">
-          <input type="radio" name="mode" value="solve" checked> Current vol
+          <input type="radio" name="mode" value="solve" checked> Current amount
         </label>
         <label class="toggle-btn">
-          <input type="radio" name="mode" value="batch"> Final vol
+          <input type="radio" name="mode" value="batch"> Final amount
         </label>
       </div>
+
+      <p class="mode-hint" data-mode="solve">
+        <strong>Current amount</strong> — you already have a solution. Enter how much you
+        have and get the stock glycerin to add. The finished solution comes out larger
+        than what you started with.
+      </p>
+      <p class="mode-hint" data-mode="batch">
+        <strong>Final amount</strong> — you want a set quantity of finished solution.
+        Enter that and get the base solution and stock glycerin to combine to hit it
+        exactly.
+      </p>
 
       <div class="field">
         <label for="target_mu">Target viscosity (final solution)</label>
@@ -52,29 +63,34 @@
       </div>
 
       <div class="field" data-mode="solve">
-        <label for="volume">Current solution volume</label>
+        <label for="amount" data-measure-label="amount">Current solution mass</label>
         <div class="input-row">
-          <input type="number" id="volume" name="volume"
+          <input type="number" id="amount" name="amount"
                  value="100" step="any" inputmode="decimal">
-          <span class="unit">mL</span>
+          <span class="unit" data-measure-unit>g</span>
         </div>
       </div>
 
       <div class="field" data-mode="batch">
-        <label for="final_volume">Final solution volume</label>
+        <label for="final_amount" data-measure-label="final">Final solution mass</label>
         <div class="input-row">
-          <input type="number" id="final_volume" name="final_volume"
+          <input type="number" id="final_amount" name="final_amount"
                  value="500" step="any" inputmode="decimal">
-          <span class="unit">mL</span>
+          <span class="unit" data-measure-unit>g</span>
         </div>
       </div>
 
+      <!-- Each concentration is labelled however its own container is: your
+           records for the base, the manufacturer's label for the stock. -->
       <div class="field">
         <label for="w0_pct">Glycerol already in solution</label>
         <div class="input-row">
           <input type="number" id="w0_pct" name="w0_pct"
                  value="0" step="any" inputmode="decimal">
-          <span class="unit">% w/w</span>
+          <select class="unit-select" name="w0_basis" aria-label="Base concentration basis">
+            <option value="ww" selected>% w/w</option>
+            <option value="vv">% v/v</option>
+          </select>
         </div>
       </div>
 
@@ -83,18 +99,32 @@
         <div class="input-row">
           <input type="number" id="stock_pct" name="stock_pct"
                  value="86" step="any" inputmode="decimal">
-          <span class="unit">%</span>
+          <select class="unit-select" name="stock_basis" aria-label="Stock concentration basis">
+            <option value="ww" selected>% w/w</option>
+            <option value="vv">% v/v</option>
+          </select>
         </div>
       </div>
 
+      <!-- Independent of both labels: how you dispense at the bench. -->
+      <div class="field-label">Measure by</div>
       <div class="basis-toggle">
         <label class="toggle-btn">
-          <input type="radio" name="basis" value="ww" checked> % w/w
+          <input type="radio" name="measure" value="mass" checked> Weight (g)
         </label>
         <label class="toggle-btn">
-          <input type="radio" name="basis" value="vv"> % v/v
+          <input type="radio" name="measure" value="volume"> Volume (mL)
         </label>
       </div>
+
+      <p class="mode-hint" data-measure="mass">
+        <strong>Weight</strong> — amounts in grams, read off the balance. The mass
+        balance is exact; millilitres are shown alongside for reference.
+      </p>
+      <p class="mode-hint" data-measure="volume">
+        <strong>Volume</strong> — amounts in millilitres, read off the cylinder.
+        Grams are shown alongside for reference.
+      </p>
     </form>
 
     <!-- result + chart swap target -->
@@ -124,6 +154,34 @@
         r.addEventListener('change', syncMode);
       });
       syncMode();
+    })();
+
+    // "Measure by" controls only the amount fields' units — the two
+    // concentration pickers are labels on your containers and stay put.
+    (function () {
+      const COPY = {
+        mass:   { amount: 'Current solution mass',   final: 'Final solution mass',   unit: 'g'  },
+        volume: { amount: 'Current solution volume', final: 'Final solution volume', unit: 'mL' },
+      };
+      function syncMeasure() {
+        const checked = document.querySelector('input[name="measure"]:checked');
+        if (!checked) return;
+        const copy = COPY[checked.value];
+        if (!copy) return;
+        document.querySelectorAll('[data-measure-label]').forEach(function (el) {
+          el.textContent = copy[el.dataset.measureLabel];
+        });
+        document.querySelectorAll('[data-measure-unit]').forEach(function (el) {
+          el.textContent = copy.unit;
+        });
+        document.querySelectorAll('[data-measure]').forEach(function (el) {
+          el.style.display = el.dataset.measure === checked.value ? '' : 'none';
+        });
+      }
+      document.querySelectorAll('input[name="measure"]').forEach(function (r) {
+        r.addEventListener('change', syncMeasure);
+      });
+      syncMeasure();
     })();
 
     // Initialise chart from server-rendered JSON on first load

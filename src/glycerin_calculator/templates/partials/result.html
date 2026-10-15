@@ -1,54 +1,90 @@
+{% if r is defined and not r.error %}
+  {# Units follow `measure` alone — how you dispense. The two concentration
+     bases are labels on your containers and are echoed back as typed, each
+     with its equivalent in the other convention so "86%" is never ambiguous. #}
+  {% set u_a = "g"  if r.measure == "mass" else "mL" %}
+  {% set u_b = "mL" if r.measure == "mass" else "g"  %}
+  {% set stock_a = r.ms if r.measure == "mass" else r.Vs %}
+  {% set stock_b = r.Vs if r.measure == "mass" else r.ms %}
+  {% set base_a  = r.m0 if r.measure == "mass" else r.V0 %}
+  {% set final_a = r.final_mass if r.measure == "mass" else r.final_vol %}
+  {% set final_b = r.final_vol  if r.measure == "mass" else r.final_mass %}
+
+  {% set w0_unit     = "w/w" if r.w0_basis == "ww" else "v/v" %}
+  {% set stock_unit  = "w/w" if r.stock_basis == "ww" else "v/v" %}
+  {% set stock_other_unit = "v/v" if r.stock_basis == "ww" else "w/w" %}
+  {% set stock_other = r.ws_vv if r.stock_basis == "ww" else r.ws %}
+{% endif %}
+
 {% if r is defined and r.error %}
 <div class="result-error">
   {{ r.error }}
 </div>
 {% elif r is defined and r.mode == "batch" %}
 <div class="result-box">
-  <div class="result-eyebrow">TO MAKE {{ "%.0f"|format(r.final_vol) }} mL · COMBINE</div>
+  <div class="result-eyebrow">
+    TO MAKE {{ "%.0f"|format(final_a) }} {{ u_a }} · COMBINE
+  </div>
   <div class="result-recipe">
     <div class="recipe-item">
-      <div class="recipe-vol">{{ "%.1f"|format(r.V0) }}<span class="recipe-unit">mL</span></div>
-      <div class="recipe-label">base ({{ "%.0f"|format(r.w0 * 100) }}% w/w)</div>
+      <div class="recipe-vol">{{ "%.1f"|format(base_a) }}<span class="recipe-unit">{{ u_a }}</span></div>
+      <div class="recipe-label">
+        base ({{ "%.0f"|format(r.w0_pct) }}% {{ w0_unit }})
+      </div>
     </div>
     <div class="recipe-plus">+</div>
     <div class="recipe-item">
-      <div class="recipe-vol">{{ "%.1f"|format(r.Vs) }}<span class="recipe-unit">mL</span></div>
+      <div class="recipe-vol">{{ "%.1f"|format(stock_a) }}<span class="recipe-unit">{{ u_a }}</span></div>
       <div class="recipe-label">
-        {{ r.stock_pct|int }}%
-        {% if r.basis == "ww" %}(w/w){% else %}(v/v){% endif %} stock
+        {{ r.stock_pct|int }}% ({{ stock_unit }}) stock
       </div>
     </div>
   </div>
   <div class="result-divider"></div>
   <dl class="result-details">
+    <dt>stock strength</dt>
+    <dd>{{ r.stock_pct|int }}% {{ stock_unit }} ≡ {{ "%.1f"|format(stock_other * 100) }}% {{ stock_other_unit }}</dd>
     <dt>required glycerol</dt>
     <dd>{{ "%.1f"|format(r.wf * 100) }}% w/w (≈ {{ "%.1f"|format(r.wf_vv * 100) }}% v/v)</dd>
     <dt>base viscosity</dt>
     <dd>{{ "%.1f"|format(r.base_mu) }} mPa·s</dd>
+    {% if r.measure == "mass" %}
+    <dt>as volumes</dt>
+    <dd>{{ "%.1f"|format(r.V0) }} mL base + {{ "%.1f"|format(r.Vs) }} mL stock</dd>
     <dt>final volume</dt>
-    <dd>≈ {{ "%.0f"|format(r.final_vol) }} mL</dd>
+    {% else %}
+    <dt>as weights</dt>
+    <dd>{{ "%.1f"|format(r.m0) }} g base + {{ "%.1f"|format(r.ms) }} g stock</dd>
+    <dt>final mass</dt>
+    {% endif %}
+    <dd>≈ {{ "%.1f"|format(final_b) }} {{ u_b }}</dd>
   </dl>
 </div>
 {% elif r is defined %}
 <div class="result-box">
   <div class="result-eyebrow">ADD TO YOUR SOLUTION</div>
   <div class="result-volume">
-    {{ "%.1f"|format(r.Vs) }}
-    <span class="result-unit">mL</span>
+    {{ "%.1f"|format(stock_a) }}
+    <span class="result-unit">{{ u_a }}</span>
   </div>
   <div class="result-desc">
-    of {{ r.stock_pct|int }}%
-    {% if r.basis == "ww" %}(w/w){% else %}(v/v){% endif %}
-    glycerin stock
+    of {{ r.stock_pct|int }}% ({{ stock_unit }}) glycerin stock
+    <span class="result-equiv">≈ {{ "%.1f"|format(stock_b) }} {{ u_b }}</span>
   </div>
   <div class="result-divider"></div>
   <dl class="result-details">
+    <dt>stock strength</dt>
+    <dd>{{ r.stock_pct|int }}% {{ stock_unit }} ≡ {{ "%.1f"|format(stock_other * 100) }}% {{ stock_other_unit }}</dd>
     <dt>required glycerol</dt>
     <dd>{{ "%.1f"|format(r.wf * 100) }}% w/w (≈ {{ "%.1f"|format(r.wf_vv * 100) }}% v/v)</dd>
     <dt>base viscosity</dt>
     <dd>{{ "%.1f"|format(r.base_mu) }} mPa·s</dd>
+    {% if r.measure == "mass" %}
+    <dt>final mass</dt>
+    {% else %}
     <dt>final volume</dt>
-    <dd>≈ {{ "%.1f"|format(r.final_vol) }} mL</dd>
+    {% endif %}
+    <dd>≈ {{ "%.1f"|format(final_a) }} {{ u_a }} (≈ {{ "%.1f"|format(final_b) }} {{ u_b }})</dd>
   </dl>
 </div>
 {% endif %}

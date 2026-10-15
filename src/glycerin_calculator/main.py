@@ -92,30 +92,38 @@ async def calculate_endpoint(
     request: Request,
     target_mu: Annotated[float, Form()],
     temperature: Annotated[float, Form()],
-    volume: Annotated[float, Form()],
+    amount: Annotated[float, Form()],
     w0_pct: Annotated[float, Form()],
     stock_pct: Annotated[float, Form()],
-    basis: Annotated[str, Form()],
+    w0_basis: Annotated[str, Form()] = "ww",
+    stock_basis: Annotated[str, Form()] = "ww",
+    measure: Annotated[str, Form()] = "mass",
     mode: Annotated[str, Form()] = "solve",
-    final_volume: Annotated[float, Form()] = 0.0,
+    final_amount: Annotated[float, Form()] = 0.0,
 ) -> HTMLResponse:
+    # Each percentage is labelled however its own container is; `measure` alone
+    # decides whether `amount` / `final_amount` are grams or millilitres.
     if mode == "batch":
         result = calculate_batch(
             target_mu=target_mu,
             T=temperature,
-            V_final=final_volume,
+            amount_final=final_amount,
             w0_pct=w0_pct,
             stock_pct=stock_pct,
-            basis=basis,
+            w0_basis=w0_basis,
+            stock_basis=stock_basis,
+            measure=measure,
         )
     else:
         result = calculate(
             target_mu=target_mu,
             T=temperature,
-            V0=volume,
+            amount0=amount,
             w0_pct=w0_pct,
             stock_pct=stock_pct,
-            basis=basis,
+            w0_basis=w0_basis,
+            stock_basis=stock_basis,
+            measure=measure,
         )
 
     chart_json = _build_chart(

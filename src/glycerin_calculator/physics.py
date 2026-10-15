@@ -145,80 +145,142 @@ def ww_to_vv(w_frac: float, T: float = 20.0) -> float:
 # Main calculation
 # ---------------------------------------------------------------------------
 
+# How a concentration percentage is labelled.  This is a property of the liquid
+# in front of you — whichever convention the manufacturer printed on the bottle —
+# so each concentration carries its own, independently of the others.
+Basis = Literal["ww", "vv"]
+
+# How you dispense at the bench.  Independent of any label: you can weigh out a
+# stock that is specified v/v, or pipette one specified w/w.
+Measure = Literal["mass", "volume"]
+
+
 @dataclass(slots=True)
 class CalcResult:
     # inputs echoed back
     target_mu: float
     T: float
-    V0: float           # base/current solution volume (mL) — input in "solve", output in "batch"
     w0: float           # current glycerol mass frac
+    w0_vv: float        # same, as volume fraction
+    w0_pct: float
+    w0_basis: str
     ws: float           # stock glycerol mass frac
+    ws_vv: float        # same, as volume fraction
     stock_pct: float
-    basis: str
+    stock_basis: str
+    measure: str
 
     # outputs
     wf: float           # required final glycerol mass frac
     wf_vv: float        # same, as volume fraction
     base_mu: float      # viscosity of current solution
+
+    # Every amount is carried as both mass and volume so the view can present
+    # whichever `measure` calls for.  In "solve" mode the base amount is the
+    # input and the final amount is derived; in "batch" mode it is reversed.
+    m0: float           # base/current solution mass (g)
+    V0: float           # base/current solution volume (mL)
+    ms: float           # stock mass to add (g)
     Vs: float           # stock volume to add (mL)
-    final_vol: float    # final solution volume (mL) — output in "solve", input in "batch"
+    final_mass: float   # final solution mass (g)
+    final_vol: float    # final solution volume (mL)
 
     error: str | None = None
-    mode: str = "solve"  # "solve" (dose from current vol) or "batch" (volumes from final vol)
+    mode: str = "solve"  # "solve" (dose from what you have) or "batch" (split a final amount)
+
+
+def as_mass_frac(pct: float, basis: Basis, T: float = 20.0) -> float:
+    """Read a concentration percentage labelled in *basis* as a mass fraction."""
+    return pct / 100 if basis == "ww" else vv_to_ww(pct / 100, T)
+
+
+def _balance_error(
+    sol: SolveResult,
+    w0: float,
+    ws: float,
+    stock_pct: float,
+    stock_basis: Basis,
+    T: float,
+    base_label: str,
+) -> str | None:
+    """Reason the requested target cannot be reached by dilution, or None."""
+    wf = sol.cm
+    if sol.status == "high":
+        return "Target exceeds pure glycerol viscosity at this temperature — unreachable."
+    if wf <= w0 + 1e-6:
+        return (
+            f"Target viscosity is at or below your {base_label}. "
+            "Adding glycerin only raises it."
+        )
+    if wf >= ws - 1e-6:
+        # Quote the shortfall the way the stock is labelled, so it compares
+        # directly against the figure on the bottle.
+        need_pct = wf * 100 if stock_basis == "ww" else ww_to_vv(wf, T) * 100
+        unit = "w/w" if stock_basis == "ww" else "v/v"
+        return (
+            f"Your {stock_pct:.0f}% stock is too dilute — you would need "
+            f"≥ {need_pct:.1f}% ({unit}) glycerol. Use a stronger stock."
+        )
+    return None
 
 
 def calculate(
     target_mu: float,
     T: float,
-    V0: float,
+    amount0: float,
     w0_pct: float,
     stock_pct: float,
-    basis: Literal["ww", "vv"],
+    w0_basis: Basis = "ww",
+    stock_basis: Basis = "ww",
+    measure: Measure = "mass",
 ) -> CalcResult:
     """
-    Compute how many mL of stock to add to reach *target_mu*.
+    Compute how much stock to add to reach *target_mu*.
 
     Parameters
     ----------
-    target_mu : float   Target viscosity in mPa·s
-    T         : float   Temperature in °C
-    V0        : float   Current solution volume in mL
-    w0_pct    : float   Glycerol already in solution, in % (w/w)
-    stock_pct : float   Stock glycerol concentration in %
-    basis     : str     "ww" or "vv" — applies to stock_pct
+    target_mu   : float  Target viscosity in mPa·s
+    T           : float  Temperature in °C
+    amount0     : float  How much solution you already have — grams when
+                         *measure* is "mass", millilitres when it is "volume"
+    w0_pct      : float  Glycerol already in solution, in % of *w0_basis*
+    stock_pct   : float  Stock glycerol concentration, in % of *stock_basis*
+    w0_basis    : str    "ww" or "vv" — how the base solution is labelled
+    stock_basis : str    "ww" or "vv" — how the stock bottle is labelled
+    measure     : str    "mass" or "volume" — how you dispense at the bench
+
+    The two bases are independent of each other and of *measure*: a stock
+    specified v/v can be weighed out, and a base known w/w can be pipetted.
     """
-    w0 = w0_pct / 100
-    ws = stock_pct / 100 if basis == "ww" else vv_to_ww(stock_pct / 100, T)
+    w0 = as_mass_frac(w0_pct, w0_basis, T)
+    ws = as_mass_frac(stock_pct, stock_basis, T)
 
     sol = solve_cm(target_mu, T)
     wf = sol.cm
     base_mu = mix_visc(w0, T)
+    error = _balance_error(sol, w0, ws, stock_pct, stock_basis, T, "current solution")
 
-    error: str | None = None
-    if sol.status == "high":
-        error = "Target exceeds pure glycerol viscosity at this temperature — unreachable."
-    elif wf <= w0 + 1e-6:
-        error = (
-            "Target viscosity is at or below your current solution. "
-            "Adding glycerin only raises it."
-        )
-    elif wf >= ws - 1e-6:
-        error = (
-            f"Your {stock_pct:.0f}% stock is too dilute — you would need "
-            f"≥ {wf * 100:.1f}% glycerol. Use a stronger stock."
-        )
+    # Whichever way you measure is the exact input; the other is derived.
+    if measure == "mass":
+        m0 = amount0
+        V0 = m0 / density(w0, T)
+    else:
+        V0 = amount0
+        m0 = V0 * density(w0, T)
 
-    m0 = V0 * density(w0, T)
     ms = m0 * (wf - w0) / (ws - wf) if not error else 0.0
     Vs = ms / density(ws, T) if not error else 0.0
     final_mass = m0 + ms
     final_vol = final_mass / density(wf, T) if not error else V0
 
     return CalcResult(
-        target_mu=target_mu, T=T, V0=V0, w0=w0, ws=ws,
-        stock_pct=stock_pct, basis=basis,
-        wf=wf, wf_vv=ww_to_vv(wf, T),
-        base_mu=base_mu, Vs=Vs, final_vol=final_vol,
+        target_mu=target_mu, T=T,
+        w0=w0, w0_vv=ww_to_vv(w0, T), w0_pct=w0_pct, w0_basis=w0_basis,
+        ws=ws, ws_vv=ww_to_vv(ws, T), stock_pct=stock_pct, stock_basis=stock_basis,
+        measure=measure,
+        wf=wf, wf_vv=ww_to_vv(wf, T), base_mu=base_mu,
+        m0=m0, V0=V0, ms=ms, Vs=Vs,
+        final_mass=final_mass, final_vol=final_vol,
         error=error, mode="solve",
     )
 
@@ -226,52 +288,63 @@ def calculate(
 def calculate_batch(
     target_mu: float,
     T: float,
-    V_final: float,
+    amount_final: float,
     w0_pct: float,
     stock_pct: float,
-    basis: Literal["ww", "vv"],
+    w0_basis: Basis = "ww",
+    stock_basis: Basis = "ww",
+    measure: Measure = "mass",
 ) -> CalcResult:
     """
-    Compute the base-solution and stock volumes to combine to make exactly
-    *V_final* mL of final solution at *target_mu*.
+    Compute the base-solution and stock amounts to combine to make exactly
+    *amount_final* of final solution at *target_mu*.
 
-    Same mass balance as :func:`calculate`, but the desired final volume is the
-    input and both component volumes (base ``V0`` and stock ``Vs``) are solved
-    for.  Note: because glycerol–water mixing contracts, ``V0 + Vs`` exceeds
-    ``V_final`` slightly — the balance is exact by mass.
+    Same mass balance as :func:`calculate`, but the desired final amount is the
+    input and both components (base and stock) are solved for.
+
+    Parameters
+    ----------
+    amount_final : float
+        Finished solution wanted — grams when *measure* is "mass", millilitres
+        when it is "volume".  Measuring by volume, note that glycerol–water
+        mixing contracts, so ``V0 + Vs`` exceeds ``final_vol`` slightly; the
+        balance is exact by mass either way.
+
+    The remaining parameters carry the same meaning as in :func:`calculate`.
     """
-    w0 = w0_pct / 100
-    ws = stock_pct / 100 if basis == "ww" else vv_to_ww(stock_pct / 100, T)
+    w0 = as_mass_frac(w0_pct, w0_basis, T)
+    ws = as_mass_frac(stock_pct, stock_basis, T)
 
     sol = solve_cm(target_mu, T)
     wf = sol.cm
     base_mu = mix_visc(w0, T)
+    error = _balance_error(sol, w0, ws, stock_pct, stock_basis, T, "base solution")
 
-    error: str | None = None
-    if sol.status == "high":
-        error = "Target exceeds pure glycerol viscosity at this temperature — unreachable."
-    elif wf <= w0 + 1e-6:
-        error = (
-            "Target viscosity is at or below your base solution. "
-            "Adding glycerin only raises it."
-        )
-    elif wf >= ws - 1e-6:
-        error = (
-            f"Your {stock_pct:.0f}% stock is too dilute — you would need "
-            f"≥ {wf * 100:.1f}% glycerol. Use a stronger stock."
-        )
-
-    final_mass = V_final * density(wf, T)
-    ms = final_mass * (wf - w0) / (ws - w0) if not error else 0.0
-    m0 = final_mass - ms if not error else 0.0
-    Vs = ms / density(ws, T) if not error else 0.0
-    V0 = m0 / density(w0, T) if not error else 0.0
+    if error:
+        # Nothing downstream is meaningful; the view renders only the message.
+        final_mass = amount_final if measure == "mass" else 0.0
+        final_vol = amount_final if measure == "volume" else 0.0
+        ms = m0 = Vs = V0 = 0.0
+    else:
+        if measure == "mass":
+            final_mass = amount_final
+            final_vol = final_mass / density(wf, T)
+        else:
+            final_vol = amount_final
+            final_mass = final_vol * density(wf, T)
+        ms = final_mass * (wf - w0) / (ws - w0)
+        m0 = final_mass - ms
+        Vs = ms / density(ws, T)
+        V0 = m0 / density(w0, T)
 
     return CalcResult(
-        target_mu=target_mu, T=T, V0=V0, w0=w0, ws=ws,
-        stock_pct=stock_pct, basis=basis,
-        wf=wf, wf_vv=ww_to_vv(wf, T),
-        base_mu=base_mu, Vs=Vs, final_vol=V_final,
+        target_mu=target_mu, T=T,
+        w0=w0, w0_vv=ww_to_vv(w0, T), w0_pct=w0_pct, w0_basis=w0_basis,
+        ws=ws, ws_vv=ww_to_vv(ws, T), stock_pct=stock_pct, stock_basis=stock_basis,
+        measure=measure,
+        wf=wf, wf_vv=ww_to_vv(wf, T), base_mu=base_mu,
+        m0=m0, V0=V0, ms=ms, Vs=Vs,
+        final_mass=final_mass, final_vol=final_vol,
         error=error, mode="batch",
     )
 
