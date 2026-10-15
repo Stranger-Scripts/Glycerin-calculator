@@ -47,28 +47,6 @@ Or directly:
 uv run uvicorn glycerin_calculator.main:app --reload
 ```
 
-## Project layout
-
-```
-glycerin-calculator/
-├── pyproject.toml
-├── README.md
-├── tests/
-│   └── test_calculator.py
-└── src/
-    └── glycerin_calculator/
-        ├── __init__.py
-        ├── main.py          # FastAPI app + Plotly chart
-        ├── physics.py       # Cheng model, density, unit conversions
-        ├── density_data.py  # glycerol–water density tables (15–30 °C)
-        ├── static/
-        │   └── style.css
-        └── templates/
-            ├── index.html
-            └── partials/
-                └── result.html   # HTMX swap target
-```
-
 ## Running tests
 
 ```bash
@@ -84,12 +62,18 @@ uv run pytest -v
   tables at 15, 15.5, 20, 25 and 30 °C. Within that band the entered temperature
   is used directly; outside 15–30 °C the value is extrapolated from the nearest
   anchor pair, so verify the density assumption at temperature extremes.
-- **Stock basis**: confirm whether your 86% stock is specified w/w or v/v —
-  both options are supported via the toggle.
+- **Concentration basis**: each concentration carries its own w/w or v/v picker,
+  since the base solution and the stock bottle are labelled independently. The
+  conventions are not interchangeable — 86 % v/v glycerol is 88.6 % w/w — so the
+  result panel always echoes the stock strength in both.
+- **Measure by**: separate from the labels, this picks whether amounts are read
+  in grams or millilitres. Weighing makes the mass balance exact; dispensing by
+  volume means the components sum to slightly more than the final volume,
+  because glycerol–water mixing contracts.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for release history. Current version: **0.5.0**.
+See [CHANGELOG.md](CHANGELOG.md) for release history. Current version: **1.0.0**.
 
 ## Dependencies
 
